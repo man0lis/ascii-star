@@ -103,6 +103,7 @@ fn main() {
         duration: gst::CLOCK_TIME_NONE,
     };
 
+    // begin main loop
     while !custom_data.terminate {
         let msg = bus.timed_pop(10 * gst::MSECOND);
 
@@ -133,9 +134,16 @@ fn main() {
                     // original game and its not working without it
                     let beat = (position_ms - gap) * (bpms * 4.0);
 
-                    let next_line_start = next_line.clone().unwrap().start;
+                    let next_line_start = if next_line.is_some() {
+                        next_line.clone().unwrap().start
+                    } else {
+                        // last line reached, make next if always fail
+                        beat as i32 + 100
+                    };
                     if beat > next_line_start as f32 {
-                        current_line = next_line;
+                        if next_line.is_some() {
+                            current_line = next_line;
+                        };
                         next_line = line_iter.next();
                         println!("");
                     }
@@ -182,6 +190,13 @@ fn main() {
             }
         }
     }
+    // end main loop
+
+    // Shutdown pipeline
+    let ret = custom_data.playbin.set_state(gst::State::Null);
+    assert_ne!(ret, gst::StateChangeReturn::Failure);
+    
+    println!("");
 }
 
 fn handle_message(custom_data: &mut CustomData, msg: &gst::GstRc<gst::MessageRef>) {
