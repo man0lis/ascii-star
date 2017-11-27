@@ -1,7 +1,7 @@
 [package]
 name = "usrs-cli"
 version = "0.1.0"
-authors = ["Robin Nehls <nehls@mi.fu-berlin.de>"]
+authors = ["Robin Nehls <git@manol.is>"]
 
 [dependencies]
 ultrastar-txt = { git = "https://git.0x86.de/manolis/ultrastar-txt.git" }
