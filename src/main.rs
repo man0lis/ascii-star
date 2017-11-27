@@ -141,6 +141,12 @@ fn main() {
                         beat as i32 + 100
                     };
                     if beat > next_line_start as f32 {
+                        // reprint current line to avoid stale highlights
+                        if let &Some(ref line) = &current_line {
+                            print!("\r{}", generate_output(line, beat + 100.0));
+                            io::stdout().flush().unwrap();
+                        }
+
                         if next_line.is_some() {
                             current_line = next_line;
                         };
@@ -149,43 +155,10 @@ fn main() {
                     }
 
                     // print current lyric line
-                    let mut lyric = String::new();
                     if let &Some(ref line) = &current_line {
-                        for note in line.notes.iter() {
-                            // note is current note or allready played
-                            if beat >= note.start as f32 {
-                                // note is current not -> hightlight it
-                                if (note.start + note.duration) as f32 >= beat {
-                                    if note.notetype == NoteType::Golden {
-                                        lyric.push_str(
-                                            &note.text.black().on_bright_yellow().to_string(),
-                                        );
-                                    } else {
-                                        lyric.push_str(
-                                            &note.text.black().on_bright_white().to_string(),
-                                        );
-                                    }
-                                }
-                                // note has been played
-                                else {
-                                    if note.notetype == NoteType::Golden {
-                                        lyric.push_str(&note.text.yellow().to_string());
-                                    } else {
-                                        lyric.push_str(&note.text.white().to_string());
-                                    }
-                                }
-                            } else {
-                                if note.notetype == NoteType::Golden {
-                                    lyric.push_str(&note.text.bright_yellow().to_string());
-                                } else {
-                                    lyric.push_str(&note.text.bright_blue().to_string());
-                                }
-                            }
-                        }
+                        print!("\r{}", generate_output(line, beat));
+                        io::stdout().flush().unwrap();
                     }
-
-                    print!("\r{}", lyric);
-                    io::stdout().flush().unwrap();
                 }
             }
         }
@@ -195,8 +168,40 @@ fn main() {
     // Shutdown pipeline
     let ret = custom_data.playbin.set_state(gst::State::Null);
     assert_ne!(ret, gst::StateChangeReturn::Failure);
-    
+
     println!("");
+}
+
+fn generate_output(line: &ultrastar_txt::Line, beat: f32) -> String {
+    let mut lyric = String::new();
+    for note in line.notes.iter() {
+        // note is current note or allready played
+        if beat >= note.start as f32 {
+            // note is current not -> hightlight it
+            if (note.start + note.duration) as f32 >= beat {
+                if note.notetype == NoteType::Golden {
+                    lyric.push_str(&note.text.black().on_bright_yellow().to_string());
+                } else {
+                    lyric.push_str(&note.text.black().on_bright_white().to_string());
+                }
+            }
+            // note has been played
+            else {
+                if note.notetype == NoteType::Golden {
+                    lyric.push_str(&note.text.yellow().to_string());
+                } else {
+                    lyric.push_str(&note.text.white().to_string());
+                }
+            }
+        } else {
+            if note.notetype == NoteType::Golden {
+                lyric.push_str(&note.text.bright_yellow().to_string());
+            } else {
+                lyric.push_str(&note.text.bright_blue().to_string());
+            }
+        }
+    }
+    lyric
 }
 
 fn handle_message(custom_data: &mut CustomData, msg: &gst::GstRc<gst::MessageRef>) {
