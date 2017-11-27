@@ -1,10 +1,11 @@
-#[macro_use] extern crate log;
-extern crate env_logger;
 extern crate chardet;
-extern crate encoding;
-extern crate gstreamer as gst;
-extern crate ultrastar_txt;
 extern crate colored;
+extern crate encoding;
+extern crate env_logger;
+extern crate gstreamer as gst;
+#[macro_use]
+extern crate log;
+extern crate ultrastar_txt;
 
 use std::env;
 use std::fs::File;
@@ -93,7 +94,7 @@ fn main() {
     let ret = playbin.set_state(gst::State::Playing);
     assert_ne!(ret, gst::StateChangeReturn::Failure);
 
-    // cpnnect to the bus
+    // connect to the bus
     let bus = playbin.get_bus().unwrap();
     let mut custom_data = CustomData {
         playbin: playbin,
@@ -128,8 +129,9 @@ fn main() {
 
                     // calculate current beat
                     let position_ms = position.mseconds().unwrap_or(0) as f32;
-                    // don't know why I need the 4.0 but its in the original game and its not working without it
-                    let beat = (position_ms - gap) * (bpms*4.0);
+                    // don't know why I need the 4.0 but its in the
+                    // original game and its not working without it
+                    let beat = (position_ms - gap) * (bpms * 4.0);
 
                     let next_line_start = next_line.clone().unwrap().start;
                     if beat > next_line_start as f32 {
@@ -147,27 +149,27 @@ fn main() {
                                 // note is current not -> hightlight it
                                 if (note.start + note.duration) as f32 >= beat {
                                     if note.notetype == NoteType::Golden {
-                                        lyric.push_str(&note.text.black().on_bright_yellow().to_string());
-                                    }
-                                    else {
-                                        lyric.push_str(&note.text.black().on_bright_white().to_string());
+                                        lyric.push_str(
+                                            &note.text.black().on_bright_yellow().to_string(),
+                                        );
+                                    } else {
+                                        lyric.push_str(
+                                            &note.text.black().on_bright_white().to_string(),
+                                        );
                                     }
                                 }
                                 // note has been played
                                 else {
                                     if note.notetype == NoteType::Golden {
                                         lyric.push_str(&note.text.yellow().to_string());
-                                    }
-                                    else {
+                                    } else {
                                         lyric.push_str(&note.text.white().to_string());
                                     }
                                 }
-                            }
-                            else {
+                            } else {
                                 if note.notetype == NoteType::Golden {
                                     lyric.push_str(&note.text.bright_yellow().to_string());
-                                }
-                                else {
+                                } else {
                                     lyric.push_str(&note.text.bright_blue().to_string());
                                 }
                             }
