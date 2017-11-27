@@ -1,0 +1,13 @@
+[package]
+name = "usrs-cli"
+version = "0.1.0"
+authors = ["Robin Nehls <nehls@mi.fu-berlin.de>"]
+
+[dependencies]
+ultrastar-txt = { git = "https://git.0x86.de/manolis/ultrastar-txt.git" }
+chardet = "0.2"
+encoding = "0.2"
+gstreamer = "0.9"
+log = "0.3"
+env_logger = "0.4"
+colored = "1.6"
