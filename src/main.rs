@@ -6,8 +6,8 @@ extern crate gstreamer as gst;
 #[macro_use]
 extern crate log;
 extern crate ultrastar_txt;
+extern crate clap;
 
-use std::env;
 use std::fs::File;
 use std::io;
 use std::io::{Read, Write};
@@ -16,8 +16,10 @@ use gst::MessageView;
 use gst::prelude::*;
 use colored::*;
 use ultrastar_txt::NoteType;
+use clap::{Arg, App};
 
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+const AUTHOR: &'static str = env!("CARGO_PKG_AUTHORS");
 
 struct CustomData {
     playbin: gst::Element,    // Our one and only element
@@ -29,15 +31,21 @@ struct CustomData {
 fn main() {
     let _ = env_logger::init();
 
-    println!("Ultrastar CLI player {} by manolis", VERSION);
+    // manage command line arguments using clap
+    let matches = App::new("usrs-cli")
+        .version(VERSION)
+        .author(AUTHOR)
+        .about("An Ultrastar Song player for the command line written in rust")
+        .arg(Arg::with_name("songfile")
+            .value_name("TXT")
+            .help("the song file to play")
+            .required(true))
+        .get_matches();
 
-    // hanlde cmd line args
-    let args: Vec<String> = env::args().collect();
-    if args.len() != 2 {
-        println!("Usage: {} <UltraStar Song TXT>", &args[0]);
-        std::process::exit(1);
-    }
-    let song_filepath = Path::new(&args[1]);
+    println!("Ultrastar CLI player {} by @man0lis", VERSION);
+
+    // get path from command line arguments
+    let song_filepath = Path::new(matches.value_of("songfile").unwrap());
 
     // open txt file
     let mut file = File::open(song_filepath).expect("Could not open file :(");
