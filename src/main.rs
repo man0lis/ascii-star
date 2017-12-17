@@ -1,22 +1,18 @@
-extern crate chardet;
+extern crate clap;
 extern crate colored;
-extern crate encoding;
 extern crate env_logger;
 extern crate gstreamer as gst;
 #[macro_use]
 extern crate log;
 extern crate ultrastar_txt;
-extern crate clap;
 
-use std::fs::File;
 use std::io;
-use std::io::{Read, Write};
-use std::path::{Path, PathBuf};
+use std::io::Write;
+use std::path::Path;
 use gst::MessageView;
 use gst::prelude::*;
 use colored::*;
-use ultrastar_txt::NoteType;
-use clap::{Arg, App};
+use clap::{App, Arg};
 
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 const AUTHOR: &'static str = env!("CARGO_PKG_AUTHORS");
@@ -36,10 +32,12 @@ fn main() {
         .version(VERSION)
         .author(AUTHOR)
         .about("An Ultrastar Song player for the command line written in rust")
-        .arg(Arg::with_name("songfile")
-            .value_name("TXT")
-            .help("the song file to play")
-            .required(true))
+        .arg(
+            Arg::with_name("songfile")
+                .value_name("TXT")
+                .help("the song file to play")
+                .required(true),
+        )
         .get_matches();
 
     println!("Ultrastar CLI player {} by @man0lis", VERSION);
@@ -47,26 +45,10 @@ fn main() {
     // get path from command line arguments
     let song_filepath = Path::new(matches.value_of("songfile").unwrap());
 
-    // open txt file
-    let mut file = File::open(song_filepath).expect("Could not open file :(");
-    let mut reader: Vec<u8> = Vec::new();
-
-    // read file, detect encoding and decode to String
-    file.read_to_end(&mut reader)
-        .expect("Could not read file :(");
-    let chardet_result = chardet::detect(&reader);
-    let whatwg_label = chardet::charset2encoding(&chardet_result.0);
-    let coder = encoding::label::encoding_from_whatwg_label(whatwg_label);
-    let txt = coder
-        .unwrap()
-        .decode(&reader, encoding::DecoderTrap::Ignore)
-        .expect("Could not decode file :(");
-
     // parse txt file
-    let header =
-        ultrastar_txt::parse_txt_header_str(txt.as_ref()).expect("Could not parse header :(");
-    let lines =
-        ultrastar_txt::parse_txt_lines_str(txt.as_ref()).expect("Could not parse lyric lines :(");
+    let txt_song = ultrastar_txt::parse_txt_song(song_filepath).unwrap();
+    let header = txt_song.header;
+    let lines = txt_song.lines;
 
     // prepare song
     let bpms = header.bpm / 60.0 / 1000.0;
@@ -77,12 +59,9 @@ fn main() {
     let mut next_line = line_iter.next();
 
     // construct path and uri to audio file
-    let mut audio_path = PathBuf::from(song_filepath.parent().unwrap());
-    audio_path.push(header.audio_path);
-    let full_audio_path = audio_path.canonicalize().unwrap();
-
+    let audio_path = header.audio_path;
     let mut uri = String::from("file://");
-    uri.push_str(full_audio_path.to_str().unwrap());
+    uri.push_str(audio_path.to_str().unwrap());
 
     // initialize GStreamer
     gst::init().unwrap();
@@ -180,32 +159,46 @@ fn main() {
     println!("");
 }
 
+#[derive(PartialEq)]
+enum NoteType {
+    Regular,
+    Golden,
+    Freestyle,
+}
+
 fn generate_output(line: &ultrastar_txt::Line, beat: f32) -> String {
     let mut lyric = String::new();
     for note in line.notes.iter() {
+        let (start, duration, _pitch, text, note_type) = match note {
+            &ultrastar_txt::Note::Regular{start, duration, pitch, ref text} => (start, duration, pitch, text, NoteType::Regular),
+            &ultrastar_txt::Note::Golden{start, duration, pitch, ref text} => (start, duration, pitch, text, NoteType::Golden),
+            &ultrastar_txt::Note::Freestyle{start, duration, pitch, ref text} => (start, duration, pitch, text, NoteType::Freestyle),
+            _ => continue,
+        };
+        
         // note is current note or allready played
-        if beat >= note.start as f32 {
+        if beat >= start as f32 {
             // note is current not -> hightlight it
-            if (note.start + note.duration) as f32 >= beat {
-                if note.notetype == NoteType::Golden {
-                    lyric.push_str(&note.text.black().on_bright_yellow().to_string());
+            if (start + duration) as f32 >= beat {
+                if note_type == NoteType::Golden {
+                    lyric.push_str(&text.black().on_bright_yellow().to_string());
                 } else {
-                    lyric.push_str(&note.text.black().on_bright_white().to_string());
+                    lyric.push_str(&text.black().on_bright_white().to_string());
                 }
             }
             // note has been played
             else {
-                if note.notetype == NoteType::Golden {
-                    lyric.push_str(&note.text.yellow().to_string());
+                if note_type == NoteType::Golden {
+                    lyric.push_str(&text.yellow().to_string());
                 } else {
-                    lyric.push_str(&note.text.white().to_string());
+                    lyric.push_str(&text.white().to_string());
                 }
             }
         } else {
-            if note.notetype == NoteType::Golden {
-                lyric.push_str(&note.text.bright_yellow().to_string());
+            if note_type == NoteType::Golden {
+                lyric.push_str(&text.bright_yellow().to_string());
             } else {
-                lyric.push_str(&note.text.bright_blue().to_string());
+                lyric.push_str(&text.bright_blue().to_string());
             }
         }
     }
@@ -240,8 +233,7 @@ fn handle_message(custom_data: &mut CustomData, msg: &gst::GstRc<gst::MessageRef
 
             info!(
                 "Pipeline state changed from {:?} to {:?}",
-                old_state,
-                new_state
+                old_state, new_state
             );
 
             custom_data.playing = new_state == gst::State::Playing;
