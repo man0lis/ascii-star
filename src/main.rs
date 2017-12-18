@@ -8,10 +8,10 @@ extern crate env_logger;
 extern crate gstreamer as gst;
 #[macro_use]
 extern crate log;
+extern crate termion;
 extern crate ultrastar_txt;
 
-use std::io;
-use std::io::Write;
+use std::io::{stdout, Write};
 use std::path::Path;
 use gst::MessageView;
 use gst::prelude::*;
@@ -122,6 +122,13 @@ fn run() -> Result<()> {
         duration: gst::CLOCK_TIME_NONE,
     };
 
+    // get access to terminal
+    //let stdin = stdin();
+    let mut stdout = stdout();
+
+    // clear screen
+    write!(stdout, "{}", termion::clear::All).chain_err(|| "could not write to stdout")?;
+
     // begin main loop
     while !custom_data.terminate {
         let msg = bus.timed_pop(10 * gst::MSECOND);
@@ -162,21 +169,23 @@ fn run() -> Result<()> {
                     if beat > next_line_start as f32 {
                         // reprint current line to avoid stale highlights
                         if let &Some(ref line) = &current_line {
-                            print!("\r{}", generate_output(line, beat + 100.0));
-                            io::stdout().flush().unwrap();
+                            write!(stdout, "{}", generate_screen(line, beat + 100.0)?)
+                                .chain_err(|| "could not write to stdout")?;
                         }
 
                         if next_line.is_some() {
                             current_line = next_line;
                         };
                         next_line = line_iter.next();
-                        println!("");
+                        // clear screen
+                        write!(stdout, "{}", termion::clear::All)
+                            .chain_err(|| "could not write to stdout")?;
                     }
 
                     // print current lyric line
                     if let &Some(ref line) = &current_line {
-                        print!("\r{}", generate_output(line, beat));
-                        io::stdout().flush().unwrap();
+                        write!(stdout, "{}", generate_screen(line, beat)?)
+                            .chain_err(|| "could not write to stdout")?;
                     }
                 }
             }
@@ -192,6 +201,50 @@ fn run() -> Result<()> {
     Ok(())
 }
 
+fn generate_screen(line: &ultrastar_txt::Line, beat: f32) -> Result<String> {
+    let (term_width, _term_height) =
+        termion::terminal_size().chain_err(|| "could not get terminal size")?;
+    let colored_line = line_to_corlor_str(line, beat);
+    let uncolored_line = line_to_str(line);
+
+    let line_vpos = (term_width - uncolored_line.len() as u16) / 2;
+    let line_hpos = 50;
+
+    Ok(format!(
+        "{}{}",
+        termion::cursor::Goto(line_vpos, line_hpos),
+        colored_line,
+    ))
+}
+
+fn line_to_str(line: &ultrastar_txt::Line) -> String {
+    let mut line_str = String::new();
+    for note in line.notes.iter() {
+        match note {
+            &ultrastar_txt::Note::Regular {
+                start: _,
+                duration: _,
+                pitch: _,
+                ref text,
+            } => line_str.push_str(text),
+            &ultrastar_txt::Note::Golden {
+                start: _,
+                duration: _,
+                pitch: _,
+                ref text,
+            } => line_str.push_str(text),
+            &ultrastar_txt::Note::Freestyle {
+                start: _,
+                duration: _,
+                pitch: _,
+                ref text,
+            } => line_str.push_str(text),
+            _ => continue,
+        };
+    }
+    line_str
+}
+
 #[derive(PartialEq)]
 enum NoteType {
     Regular,
@@ -199,7 +252,7 @@ enum NoteType {
     Freestyle,
 }
 
-fn generate_output(line: &ultrastar_txt::Line, beat: f32) -> String {
+fn line_to_corlor_str(line: &ultrastar_txt::Line, beat: f32) -> String {
     let mut lyric = String::new();
     for note in line.notes.iter() {
         let (start, duration, _pitch, text, note_type) = match note {
