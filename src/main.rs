@@ -1,3 +1,7 @@
+#![recursion_limit = "1024"]
+#[macro_use]
+extern crate error_chain;
+
 extern crate clap;
 extern crate colored;
 extern crate env_logger;
@@ -14,6 +18,11 @@ use gst::prelude::*;
 use colored::*;
 use clap::{App, Arg};
 
+mod errors {
+    error_chain!{}
+}
+use errors::*;
+
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 const AUTHOR: &'static str = env!("CARGO_PKG_AUTHORS");
 
@@ -25,13 +34,35 @@ struct CustomData {
 }
 
 fn main() {
+    if let Err(ref e) = run() {
+        use std::io::Write;
+        let stderr = &mut ::std::io::stderr();
+        let errmsg = "Error writing to stderr";
+
+        writeln!(stderr, "error: {}", e).expect(errmsg);
+
+        for e in e.iter().skip(1) {
+            writeln!(stderr, "caused by: {}", e).expect(errmsg);
+        }
+
+        // The backtrace is not always generated. Try to run this example
+        // with `RUST_BACKTRACE=1`.
+        if let Some(backtrace) = e.backtrace() {
+            writeln!(stderr, "backtrace: {:?}", backtrace).expect(errmsg);
+        }
+
+        ::std::process::exit(1);
+    }
+}
+
+fn run() -> Result<()> {
     let _ = env_logger::init();
 
     // manage command line arguments using clap
     let matches = App::new("usrs-cli")
         .version(VERSION)
         .author(AUTHOR)
-        .about("An Ultrastar Song player for the command line written in rust")
+        .about("An Ultrastar song player for the command line written in rust")
         .arg(
             Arg::with_name("songfile")
                 .value_name("TXT")
@@ -42,11 +73,12 @@ fn main() {
 
     println!("Ultrastar CLI player {} by @man0lis", VERSION);
 
-    // get path from command line arguments
+    // get path from command line arguments, unwrap should not fail because argument is required
     let song_filepath = Path::new(matches.value_of("songfile").unwrap());
 
     // parse txt file
-    let txt_song = ultrastar_txt::parse_txt_song(song_filepath).unwrap();
+    let txt_song =
+        ultrastar_txt::parse_txt_song(song_filepath).chain_err(|| "could not parse song file")?;
     let header = txt_song.header;
     let lines = txt_song.lines;
 
@@ -68,12 +100,12 @@ fn main() {
 
     // create the playbin element
     let playbin = gst::ElementFactory::make("playbin", "playbin")
-        .expect("Failed to create playbin element :(");
+        .chain_err(|| "failed to create playbin element")?;
 
     // set the URI to play
     playbin
         .set_property("uri", &uri)
-        .expect("Can't set uri property on playbin :(");
+        .chain_err(|| "can't set uri property on playbin")?;
 
     println!("Playing {} by {}...\n", header.title, header.artist);
 
@@ -157,6 +189,7 @@ fn main() {
     assert_ne!(ret, gst::StateChangeReturn::Failure);
 
     println!("");
+    Ok(())
 }
 
 #[derive(PartialEq)]
@@ -170,12 +203,27 @@ fn generate_output(line: &ultrastar_txt::Line, beat: f32) -> String {
     let mut lyric = String::new();
     for note in line.notes.iter() {
         let (start, duration, _pitch, text, note_type) = match note {
-            &ultrastar_txt::Note::Regular{start, duration, pitch, ref text} => (start, duration, pitch, text, NoteType::Regular),
-            &ultrastar_txt::Note::Golden{start, duration, pitch, ref text} => (start, duration, pitch, text, NoteType::Golden),
-            &ultrastar_txt::Note::Freestyle{start, duration, pitch, ref text} => (start, duration, pitch, text, NoteType::Freestyle),
+            &ultrastar_txt::Note::Regular {
+                start,
+                duration,
+                pitch,
+                ref text,
+            } => (start, duration, pitch, text, NoteType::Regular),
+            &ultrastar_txt::Note::Golden {
+                start,
+                duration,
+                pitch,
+                ref text,
+            } => (start, duration, pitch, text, NoteType::Golden),
+            &ultrastar_txt::Note::Freestyle {
+                start,
+                duration,
+                pitch,
+                ref text,
+            } => (start, duration, pitch, text, NoteType::Freestyle),
             _ => continue,
         };
-        
+
         // note is current note or allready played
         if beat >= start as f32 {
             // note is current not -> hightlight it
