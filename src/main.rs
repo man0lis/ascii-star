@@ -209,8 +209,9 @@ fn generate_screen(line: &ultrastar_txt::Line, beat: f32) -> Result<String> {
     let colored_line = line_to_corlor_str(line, beat);
     let uncolored_line = line_to_str(line);
 
-    let line_vpos = (term_width - uncolored_line.len() as u16) / 2;
-    let line_hpos = 2 + 17 * 2 + 10; // TODO this is below the lines but should not be a magic number
+    // terminal goto starts at 1
+    let line_vpos = (term_width - uncolored_line.len() as u16) / 2 + 1;
+    let line_hpos = 2 + 17 * 2 + 10 + 1; // TODO this is below the lines but should not be a magic number
     let note_lines = draw_notelines(line, beat, term_width)?;
 
     Ok(format!(
@@ -307,16 +308,18 @@ fn draw_notelines(line: &ultrastar_txt::Line, beat: f32, term_width: u16) -> Res
         };
 
         // calculate position of current note
-        let note_hpos = ((start - first_note_start) as f32 * chars_per_beat) as u16;
+        // terminal goto starts at 1
+        let note_hpos = ((start - first_note_start) as f32 * chars_per_beat) as u16 + 1;
         let note_vpos =
-            (top_offset + 17 * line_spacing) - letter_to_pos(pitch.letter()) * line_spacing;
+            (top_offset + 17 * line_spacing) - letter_to_pos(pitch.letter()) * line_spacing + 1;
         // note is current note or allready played
         if beat >= start as f32 {
             // draw progress bar
             let times = (beat - start as f32) * chars_per_beat;
             if beat <= last_note_end as f32 {
                 let bar = "#".repeat(times.floor() as usize);
-                output.push_str(format!("{}{}", termion::cursor::Goto(0, 0), bar).as_ref());
+                // terminal goto starts with 1
+                output.push_str(format!("{}{}", termion::cursor::Goto(1, 1), bar).as_ref());
             }
 
             // note is current note -> hightlight it
@@ -331,9 +334,7 @@ fn draw_notelines(line: &ultrastar_txt::Line, beat: f32, term_width: u16) -> Res
                                 .yellow()
                                 .to_string(),
                             termion::cursor::Goto(note_hpos, note_vpos),
-                            "#".repeat(marked as usize)
-                                .bright_yellow()
-                                .to_string(),
+                            "#".repeat(marked as usize).bright_yellow().to_string(),
                             termion::cursor::Goto(note_hpos, note_vpos),
                             pitch.letter(),
                         ).as_ref(),
@@ -348,9 +349,7 @@ fn draw_notelines(line: &ultrastar_txt::Line, beat: f32, term_width: u16) -> Res
                                 .bright_blue()
                                 .to_string(),
                             termion::cursor::Goto(note_hpos, note_vpos),
-                            "#".repeat(marked as usize)
-                                .white()
-                                .to_string(),
+                            "#".repeat(marked as usize).white().to_string(),
                             termion::cursor::Goto(note_hpos, note_vpos),
                             pitch.letter(),
                         ).as_ref(),
