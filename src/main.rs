@@ -19,6 +19,7 @@ use gst::prelude::*;
 use colored::*;
 use clap::{App, Arg};
 use pitch_calc::*;
+use termion::screen::AlternateScreen;
 
 mod errors {
     error_chain!{}
@@ -126,7 +127,8 @@ fn run() -> Result<()> {
 
     // get access to terminal
     //let stdin = stdin();
-    let mut stdout = stdout();
+    //let mut stdout = stdout();
+    let mut stdout = AlternateScreen::from(stdout()); 
 
     // clear screen
     write!(stdout, "{}", termion::clear::All).chain_err(|| "could not write to stdout")?;
