@@ -13,6 +13,7 @@ extern crate termion;
 extern crate ultrastar_txt;
 
 mod draw;
+mod pitch;
 
 use std::io::{stdout, Write};
 use std::path::Path;
