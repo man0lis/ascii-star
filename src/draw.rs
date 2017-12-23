@@ -185,9 +185,9 @@ fn draw_notelines(line: &ultrastar_txt::Line, beat: f32, term_width: u16) -> Res
                     );
                 }
             }
+        // note has not been played yet
         } else {
             if note_type == NoteType::Golden {
-                //lyric.push_str(&text.bright_yellow().to_string());
                 output.push_str(
                     format!(
                         "{}{}{}{:?}",
@@ -200,7 +200,6 @@ fn draw_notelines(line: &ultrastar_txt::Line, beat: f32, term_width: u16) -> Res
                     ).as_ref(),
                 );
             } else {
-                //lyric.push_str(&text.bright_blue().to_string());
                 output.push_str(
                     format!(
                         "{}{}{}{:?}",
