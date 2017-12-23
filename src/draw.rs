@@ -113,6 +113,31 @@ fn draw_notelines(line: &ultrastar_txt::Line, beat: f32, term_width: u16) -> Res
         let note_hpos = ((start - first_note_start) as f32 * chars_per_beat) as u16 + 1;
         let note_vpos =
             (top_offset + 17 * line_spacing) - letter_to_pos(pitch.letter()) * line_spacing + 1;
+
+        let color_note = match note_type {
+            NoteType::Golden => {
+                Box::new(|note: &str| note.yellow().to_string()) as Box<Fn(&str) -> String>
+            }
+            NoteType::Regular => {
+                Box::new(|note: &str| note.bright_blue().to_string()) as Box<Fn(&str) -> String>
+            }
+            NoteType::Freestyle => {
+                Box::new(|note: &str| note.red().to_string()) as Box<Fn(&str) -> String>
+            }
+        };
+
+        let color_played_note = match note_type {
+            NoteType::Golden => {
+                Box::new(|note: &str| note.bright_yellow().to_string()) as Box<Fn(&str) -> String>
+            }
+            NoteType::Regular => {
+                Box::new(|note: &str| note.white().to_string()) as Box<Fn(&str) -> String>
+            }
+            NoteType::Freestyle => {
+                Box::new(|note: &str| note.bright_red().to_string()) as Box<Fn(&str) -> String>
+            }
+        };
+
         // note is current note or allready played
         if beat >= start as f32 {
             // draw progress bar
@@ -125,93 +150,55 @@ fn draw_notelines(line: &ultrastar_txt::Line, beat: f32, term_width: u16) -> Res
 
             // note is current note -> hightlight it
             if (start + duration) as f32 >= beat {
-                if note_type == NoteType::Golden {
-                    let marked = (beat - start as f32) * chars_per_beat;
-                    output.push_str(
-                        format!(
-                            "{}{}{}{}{}{:?}",
-                            termion::cursor::Goto(note_hpos, note_vpos),
-                            "#".repeat((duration as f32 * chars_per_beat) as usize)
-                                .yellow()
-                                .to_string(),
-                            termion::cursor::Goto(note_hpos, note_vpos),
-                            "#".repeat(marked as usize).bright_yellow().to_string(),
-                            termion::cursor::Goto(note_hpos, note_vpos),
-                            pitch.letter(),
-                        ).as_ref(),
-                    );
-                } else {
-                    let marked = (beat - start as f32) * chars_per_beat;
-                    output.push_str(
-                        format!(
-                            "{}{}{}{}{}{:?}",
-                            termion::cursor::Goto(note_hpos, note_vpos),
-                            "#".repeat((duration as f32 * chars_per_beat) as usize)
-                                .bright_blue()
-                                .to_string(),
-                            termion::cursor::Goto(note_hpos, note_vpos),
-                            "#".repeat(marked as usize).white().to_string(),
-                            termion::cursor::Goto(note_hpos, note_vpos),
-                            pitch.letter(),
-                        ).as_ref(),
-                    );
-                }
+                let marked = (beat - start as f32) * chars_per_beat;
+                let note_line_str = color_note(
+                    "#".repeat((duration as f32 * chars_per_beat) as usize)
+                        .as_ref(),
+                );
+                let marked_line_str = color_played_note("#".repeat(marked as usize).as_ref());
+                output.push_str(
+                    format!(
+                        "{}{}{}{}{}{:?}",
+                        termion::cursor::Goto(note_hpos, note_vpos),
+                        note_line_str,
+                        termion::cursor::Goto(note_hpos, note_vpos),
+                        marked_line_str,
+                        termion::cursor::Goto(note_hpos, note_vpos),
+                        pitch.letter(),
+                    ).as_ref(),
+                );
             }
             // note has been played
             else {
-                if note_type == NoteType::Golden {
-                    output.push_str(
-                        format!(
-                            "{}{}{}{:?}",
-                            termion::cursor::Goto(note_hpos, note_vpos),
-                            "#".repeat((duration as f32 * chars_per_beat) as usize)
-                                .bright_yellow()
-                                .to_string(),
-                            termion::cursor::Goto(note_hpos, note_vpos),
-                            pitch.letter(),
-                        ).as_ref(),
-                    );
-                } else {
-                    output.push_str(
-                        format!(
-                            "{}{}{}{:?}",
-                            termion::cursor::Goto(note_hpos, note_vpos),
-                            "#".repeat((duration as f32 * chars_per_beat) as usize)
-                                .white()
-                                .to_string(),
-                            termion::cursor::Goto(note_hpos, note_vpos),
-                            pitch.letter(),
-                        ).as_ref(),
-                    );
-                }
+                let played_line_str = color_played_note(
+                    "#".repeat((duration as f32 * chars_per_beat) as usize)
+                        .as_ref(),
+                );
+                output.push_str(
+                    format!(
+                        "{}{}{}{:?}",
+                        termion::cursor::Goto(note_hpos, note_vpos),
+                        played_line_str,
+                        termion::cursor::Goto(note_hpos, note_vpos),
+                        pitch.letter(),
+                    ).as_ref(),
+                );
             }
         // note has not been played yet
         } else {
-            if note_type == NoteType::Golden {
-                output.push_str(
-                    format!(
-                        "{}{}{}{:?}",
-                        termion::cursor::Goto(note_hpos, note_vpos),
-                        "#".repeat((duration as f32 * chars_per_beat) as usize)
-                            .yellow()
-                            .to_string(),
-                        termion::cursor::Goto(note_hpos, note_vpos),
-                        pitch.letter(),
-                    ).as_ref(),
-                );
-            } else {
-                output.push_str(
-                    format!(
-                        "{}{}{}{:?}",
-                        termion::cursor::Goto(note_hpos, note_vpos),
-                        "#".repeat((duration as f32 * chars_per_beat) as usize)
-                            .bright_blue()
-                            .to_string(),
-                        termion::cursor::Goto(note_hpos, note_vpos),
-                        pitch.letter(),
-                    ).as_ref(),
-                );
-            }
+            let note_line_str = color_note(
+                "#".repeat((duration as f32 * chars_per_beat) as usize)
+                    .as_ref(),
+            );
+            output.push_str(
+                format!(
+                    "{}{}{}{:?}",
+                    termion::cursor::Goto(note_hpos, note_vpos),
+                    note_line_str,
+                    termion::cursor::Goto(note_hpos, note_vpos),
+                    pitch.letter(),
+                ).as_ref(),
+            );
         }
     }
 
