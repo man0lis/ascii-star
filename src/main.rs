@@ -135,7 +135,10 @@ fn run() -> Result<()> {
                 .collect();
             let max_volume = pitch::get_max_amplitude(buffer_f32.as_ref());
             let dominant_note = if max_volume > 0.1 {
-                Some(pitch::get_dominant_note(buffer_f32.as_ref(), SAMPLE_RATE as f64))
+                Some(pitch::get_dominant_note(
+                    buffer_f32.as_ref(),
+                    SAMPLE_RATE as f64,
+                ))
             } else {
                 None
             };
@@ -220,8 +223,11 @@ fn run() -> Result<()> {
                     if beat > next_line_start as f32 {
                         // reprint current line to avoid stale highlights
                         if let &Some(ref line) = &current_line {
-                            write!(stdout, "{}", draw::generate_screen(line, beat + 100.0, dominant_note)?)
-                                .chain_err(|| "could not write to stdout")?;
+                            write!(
+                                stdout,
+                                "{}",
+                                draw::generate_screen(line, beat + 100.0, dominant_note)?
+                            ).chain_err(|| "could not write to stdout")?;
                         }
 
                         if next_line.is_some() {
@@ -235,8 +241,11 @@ fn run() -> Result<()> {
 
                     // print current lyric line
                     if let &Some(ref line) = &current_line {
-                        write!(stdout, "{}", draw::generate_screen(line, beat, dominant_note)?)
-                            .chain_err(|| "could not write to stdout")?;
+                        write!(
+                            stdout,
+                            "{}",
+                            draw::generate_screen(line, beat, dominant_note)?
+                        ).chain_err(|| "could not write to stdout")?;
                     }
                 }
             }
