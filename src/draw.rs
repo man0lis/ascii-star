@@ -10,23 +10,17 @@ use errors::*;
 use colored::*;
 use pitch_calc::*;
 
-pub fn generate_screen(line: &ultrastar_txt::Line, beat: f32) -> Result<String> {
+pub fn generate_screen(
+    line: &ultrastar_txt::Line,
+    beat: f32,
+    dominant_note: Option<LetterOctave>,
+) -> Result<String> {
     let (term_width, _term_height) =
         termion::terminal_size().chain_err(|| "could not get terminal size")?;
-    let colored_line = line_to_corlor_str(line, beat);
-    let uncolored_line = line_to_str(line);
-
-    // terminal goto starts at 1
-    let line_vpos = (term_width - uncolored_line.len() as u16) / 2 + 1;
-    let line_hpos = 2 + 17 * 2 + 10 + 1; // TODO this is below the lines but should not be a magic number
     let note_lines = draw_notelines(line, beat, term_width)?;
+    let lyric_line = gen_lyric_line(line, beat, term_width, dominant_note);
 
-    Ok(format!(
-        "{}{}{}",
-        note_lines,
-        termion::cursor::Goto(line_vpos, line_hpos),
-        colored_line,
-    ))
+    Ok(format!("{}{}", note_lines, lyric_line,))
 }
 
 fn draw_notelines(line: &ultrastar_txt::Line, beat: f32, term_width: u16) -> Result<String> {
@@ -260,8 +254,19 @@ enum NoteType {
     Freestyle,
 }
 
-fn line_to_corlor_str(line: &ultrastar_txt::Line, beat: f32) -> String {
-    let mut lyric = String::new();
+fn gen_lyric_line(
+    line: &ultrastar_txt::Line,
+    beat: f32,
+    term_width: u16,
+    dominant_note: Option<LetterOctave>,
+) -> String {
+    let uncolored_line = line_to_str(line);
+
+    // terminal goto starts at 1
+    let line_vpos = (term_width - uncolored_line.len() as u16) / 2 + 1;
+    let line_hpos = 2 + 17 * 2 + 10 + 1; // TODO this is below the lines but should not be a magic number
+
+    let mut lyric = format!("{}", termion::cursor::Goto(line_vpos, line_hpos));
     for note in line.notes.iter() {
         let (start, duration, _pitch, text, note_type) = match note {
             &ultrastar_txt::Note::Regular {
@@ -311,6 +316,15 @@ fn line_to_corlor_str(line: &ultrastar_txt::Line, beat: f32) -> String {
             }
         }
     }
+    // add current note under the line
+    let note = match dominant_note {
+        Some(n) => format!("{:?}", n),
+        None => format!("                    "),
+    };
+    let line_hpos = 2 + 17 * 2 + 10 + 3; // TODO this is below the lines but should not be a magic number
+    let line_vpos = (term_width - note.len() as u16) / 2 + 1;
+    lyric.push_str(format!("{}{}", termion::cursor::Goto(line_vpos, line_hpos), note).as_ref());
+
     lyric
 }
 

@@ -175,7 +175,7 @@ fn run() -> Result<()> {
     // get access to terminal
     //let stdin = stdin();
     //let mut stdout = stdout();
-    let mut stdout = AlternateScreen::from(stdout()); 
+    let mut stdout = AlternateScreen::from(stdout());
 
     // clear screen
     write!(stdout, "{}", termion::clear::All).chain_err(|| "could not write to stdout")?;
@@ -220,7 +220,7 @@ fn run() -> Result<()> {
                     if beat > next_line_start as f32 {
                         // reprint current line to avoid stale highlights
                         if let &Some(ref line) = &current_line {
-                            write!(stdout, "{}", draw::generate_screen(line, beat + 100.0)?)
+                            write!(stdout, "{}", draw::generate_screen(line, beat + 100.0, dominant_note)?)
                                 .chain_err(|| "could not write to stdout")?;
                         }
 
@@ -235,7 +235,7 @@ fn run() -> Result<()> {
 
                     // print current lyric line
                     if let &Some(ref line) = &current_line {
-                        write!(stdout, "{}", draw::generate_screen(line, beat)?)
+                        write!(stdout, "{}", draw::generate_screen(line, beat, dominant_note)?)
                             .chain_err(|| "could not write to stdout")?;
                     }
                 }
