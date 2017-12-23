@@ -2,6 +2,7 @@
 #[macro_use]
 extern crate error_chain;
 
+extern crate alto;
 extern crate clap;
 extern crate colored;
 extern crate env_logger;
@@ -21,6 +22,9 @@ use gst::MessageView;
 use gst::prelude::*;
 use clap::{App, Arg};
 use termion::screen::AlternateScreen;
+use alto::{Alto, Capture, Mono};
+use std::sync::mpsc;
+use std::thread;
 
 mod errors {
     error_chain!{}
@@ -58,6 +62,9 @@ fn main() {
         ::std::process::exit(1);
     }
 }
+
+const SAMPLE_RATE: u32 = 44_100;
+const FRAMES: i32 = 2048;
 
 fn run() -> Result<()> {
     let _ = env_logger::init();
@@ -99,6 +106,43 @@ fn run() -> Result<()> {
     let mut uri = String::from("file://");
     uri.push_str(audio_path.to_str().unwrap());
 
+    // set up openal for capture
+    let alto = Alto::load_default().chain_err(|| "could not load openal default implementation")?;
+    let cap_dev = alto.default_capture().unwrap();
+    let mut capture: Capture<Mono<i16>> = alto.open_capture(Some(&cap_dev), SAMPLE_RATE, FRAMES)
+        .chain_err(|| "could not open default capture device")?;
+
+    // channel for sending notes
+    let (sender, receiver) = mpsc::channel();
+
+    // thread that handels audio buffers from openal the audio buffer
+    let capture_thread = move || {
+        capture.start();
+        loop {
+            let mut samples_len = capture.samples_len();
+            let mut buffer_i16: Vec<i16> = vec![0; FRAMES as usize];
+            while samples_len < buffer_i16.len() as i32 {
+                samples_len = capture.samples_len();
+                thread::sleep(std::time::Duration::from_millis(1));
+            }
+            capture
+                .capture_samples(&mut buffer_i16)
+                .chain_err(|| "could not capture samples")
+                .unwrap();
+            let buffer_f32: Vec<_> = buffer_i16
+                .iter()
+                .map(|x| (*x as f32) / (std::i16::MAX as f32) * 2.0)
+                .collect();
+            let max_volume = pitch::get_max_amplitude(buffer_f32.as_ref());
+            let dominant_note = if max_volume > 0.1 {
+                Some(pitch::get_dominant_note(buffer_f32.as_ref(), SAMPLE_RATE as f64))
+            } else {
+                None
+            };
+            sender.send(dominant_note).unwrap();
+        }
+    };
+
     // initialize GStreamer
     gst::init().unwrap();
 
@@ -125,6 +169,8 @@ fn run() -> Result<()> {
         terminate: false,
         duration: gst::CLOCK_TIME_NONE,
     };
+
+    thread::spawn(capture_thread);
 
     // get access to terminal
     //let stdin = stdin();
@@ -158,7 +204,7 @@ fn run() -> Result<()> {
                             .and_then(|v| v.try_to_time())
                             .unwrap_or(gst::CLOCK_TIME_NONE);
                     }
-
+                    let dominant_note = receiver.recv().chain_err(|| "could not recv note")?;
                     // calculate current beat
                     let position_ms = position.mseconds().unwrap_or(0) as f32;
                     // don't know why I need the 4.0 but its in the
