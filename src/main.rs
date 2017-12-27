@@ -23,8 +23,9 @@ use gst::prelude::*;
 use clap::{App, Arg};
 use termion::screen::AlternateScreen;
 use alto::{Alto, Capture, Mono};
-use std::sync::mpsc;
 use std::thread;
+use std::sync::{Arc, Mutex};
+use pitch_calc::*;
 
 mod errors {
     error_chain!{}
@@ -112,8 +113,9 @@ fn run() -> Result<()> {
     let mut capture: Capture<Mono<i16>> = alto.open_capture(Some(&cap_dev), SAMPLE_RATE, FRAMES)
         .chain_err(|| "could not open default capture device")?;
 
-    // channel for sending notes
-    let (sender, receiver) = mpsc::channel();
+    // reference counted mutex for current deteced note
+    let detected_note = Arc::new(Mutex::new(Some(LetterOctave(Letter::C, 2))));
+    let detected_note_capture = detected_note.clone();
 
     // thread that handels audio buffers from openal the audio buffer
     let capture_thread = move || {
@@ -134,7 +136,8 @@ fn run() -> Result<()> {
                 .map(|x| (*x as f32) / (std::i16::MAX as f32) * 2.0)
                 .collect();
             let max_volume = pitch::get_max_amplitude(buffer_f32.as_ref());
-            let dominant_note = if max_volume > 0.1 {
+            let mut dominant_note = detected_note_capture.lock().unwrap();
+            *dominant_note = if max_volume > 0.1 {
                 Some(pitch::get_dominant_note(
                     buffer_f32.as_ref(),
                     SAMPLE_RATE as f64,
@@ -142,7 +145,6 @@ fn run() -> Result<()> {
             } else {
                 None
             };
-            sender.send(dominant_note).unwrap();
         }
     };
 
@@ -207,7 +209,8 @@ fn run() -> Result<()> {
                             .and_then(|v| v.try_to_time())
                             .unwrap_or(gst::CLOCK_TIME_NONE);
                     }
-                    let dominant_note = receiver.recv().chain_err(|| "could not recv note")?;
+                    // get note from capture thread
+                    let dominant_note = detected_note.lock().unwrap().clone();
                     // calculate current beat
                     let position_ms = position.mseconds().unwrap_or(0) as f32;
                     // don't know why I need the 4.0 but its in the
